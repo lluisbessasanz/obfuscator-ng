@@ -13,5 +13,8 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_llvm_pass_plugin(ObfuscationPlugin
   Obfuscator-ng.cpp
   lib/SubstitutionPass.cpp
+  lib/Flattening.cpp
+  lib/SplitBasicBlocks.cpp
+  lib/ApiHashing.cpp
   lib/Utils.cpp
 )

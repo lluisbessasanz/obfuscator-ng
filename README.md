@@ -5,7 +5,7 @@
 This project has been built and tested in Debian Trixie (13).
 
 ```bash
-sudo apt install cmake ninja-build
+sudo apt install cmake ninja-build mingw-w64
 
 git submodule update --init --recursive
 
@@ -13,10 +13,10 @@ cd llvm-project
 
 cmake -S llvm -B build -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
-  -DLLVM_ENABLE_PROJECTS="clang" \
+  -DLLVM_ENABLE_PROJECTS="clang;lld" \
   -DLLVM_TARGETS_TO_BUILD="X86"
 
-ninja -C build opt clang llvm-config
+ninja -C build opt clang llvm-config llvm-link 
 
 cd ../obfuscator
 

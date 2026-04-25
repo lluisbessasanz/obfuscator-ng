@@ -1,4 +1,7 @@
 #include "SubstitutionPass.h"
+#include "Flattening.h"
+#include "SplitBasicBlock.h"
+#include "ApiHashing.h"
 
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
@@ -16,6 +19,15 @@ extern "C" LLVM_ATTRIBUTE_WEAK PassPluginLibraryInfo llvmGetPassPluginInfo() {
                ArrayRef<PassBuilder::PipelineElement>) {
               if (Name == "sub") {
                 FPM.addPass(SubstitutionPass());
+                return true;
+              } else if (Name == "fla") {
+                FPM.addPass(FlatteningPass());
+                return true;
+              } else if (Name == "splitbb"){
+                FPM.addPass(SplitBBPass());
+                return true;
+              } else if (Name == "api_hashing"){
+                FPM.addPass(ApiHashingPass());
                 return true;
               }
               return false;

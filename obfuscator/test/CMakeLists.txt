@@ -1,11 +1,13 @@
 cmake_minimum_required(VERSION 3.20)
 project(obfuscator_test C)
 
-# ---- Paths you may need to adjust ----
-set(LLVM_BUILD_DIR "../../../../llvm-project/build" CACHE PATH "LLVM build directory")
+# ---- Paths you may need to adjust ----W
+set(LLVM_BUILD_DIR "../../../llvm-project/build" CACHE PATH "LLVM build directory")
 set(PLUGIN_PATH "../../build/ObfuscationPlugin.so" CACHE FILEPATH "Path to ObfuscationPlugin.so")
+set(WINDOS_PATH "/usr/x86_64-w64-mingw32/include" CACHE PATH "Windows Headers directory")
+
 set(PASS_NAME "sub" CACHE STRING "Pass pipeline name")
-set(SUB_LOOP "3" CACHE STRING "Number of substitution rounds")
+set(SUB_LOOP "3" CACHE STRING "Number of substitution rounds (used only if pipeline includes sub)")
 
 # LLVM tools from your build tree
 set(CLANG "${LLVM_BUILD_DIR}/bin/clang")
@@ -34,6 +36,16 @@ if(NOT EXISTS "${PLUGIN_PATH}")
   message(FATAL_ERROR "Plugin not found: ${PLUGIN_PATH}")
 endif()
 
+# Build opt arguments
+set(OPT_ARGS
+  -load-pass-plugin "${PLUGIN_PATH}"
+  -passes=${PASS_NAME}
+  -S "${TEST_LL}" -o "${OUT_LL}"
+)
+
+# Only add -sub_loop if the pipeline contains sub
+list(INSERT OPT_ARGS 2 -sub_loop=${SUB_LOOP})
+
 # 1) C -> LLVM IR
 add_custom_command(
   OUTPUT "${TEST_LL}"
@@ -47,11 +59,7 @@ add_custom_command(
 # 2) LLVM IR -> obfuscated LLVM IR
 add_custom_command(
   OUTPUT "${OUT_LL}"
-  COMMAND "${OPT}"
-          -load-pass-plugin "${PLUGIN_PATH}"
-          -passes=${PASS_NAME}
-          -sub_loop=${SUB_LOOP}
-          -S "${TEST_LL}" -o "${OUT_LL}"
+  COMMAND "${OPT}" ${OPT_ARGS}
   DEPENDS "${TEST_LL}" "${PLUGIN_PATH}"
   COMMENT "Running obfuscation pass: ${PASS_NAME}"
   VERBATIM

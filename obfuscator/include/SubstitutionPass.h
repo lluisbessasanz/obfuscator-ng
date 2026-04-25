@@ -45,7 +45,6 @@ private:
 
   bool substitute(Function &F);
 
-  static uint64_t randomUint64();
   static unsigned randomIndex(unsigned UpperBound);
 
   void addNeg(BinaryOperator *BO);
