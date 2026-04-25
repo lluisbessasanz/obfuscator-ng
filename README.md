@@ -28,12 +28,6 @@ ninja -C build
 
 # Testing
 cd test/build-test
-cmake ..
-cmake --build .
-cmake --build . --target run_test
-cmake --build . --target diff_ir
+cat README.md
 ```
-
-Now you have a working obfuscated test.c in build-test named obfuscated-test.out
-
 
