@@ -101,7 +101,26 @@ llvm::StringRef llvm::ApiHashingPass::getLibraryForFunction(StringRef Name) {
         {"LoadLibraryW", "kernel32.dll"},
         {"GetProcAddress", "kernel32.dll"},
         {"CreateProcessA", "kernel32.dll"},
-        {"ExitProcess", "kernel32.dll"}
+        {"ExitProcess", "kernel32.dll"},
+        {"CreatePipe", "kernel32.dll"},
+        {"SetHandleInformation", "kernel32.dll"},
+        {"CloseHandle", "kernel32.dll"},
+        {"PeekNamedPipe", "kernel32.dll"},
+        {"ReadFile", "kernel32.dll"},
+        {"WriteFile", "kernel32.dll"},
+
+        {"CryptBinaryToStringA", "crypt32.dll"},
+
+        {"WinHttpOpen", "winhttp.dll"},
+        {"WinHttpConnect", "winhttp.dll"},
+        {"WinHttpCloseHandle", "winhttp.dll"},
+        {"WinHttpOpenRequest", "winhttp.dll"},
+        {"WinHttpSetOption", "winhttp.dll"},
+        {"WinHttpSendRequest", "winhttp.dll"},
+        {"WinHttpSendRequest", "winhttp.dll"},
+        {"WinHttpReceiveResponse", "winhttp.dll"},
+        {"WinHttpQueryDataAvailable", "winhttp.dll"},
+        {"WinHttpReadData", "winhttp.dll"}
     };
 
     auto It = ApiToDll.find(Name);

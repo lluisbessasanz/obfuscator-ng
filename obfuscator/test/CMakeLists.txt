@@ -6,7 +6,7 @@ set(LLVM_BUILD_DIR "../../../llvm-project/build" CACHE PATH "LLVM build director
 set(PLUGIN_PATH "../../build/ObfuscationPlugin.so" CACHE FILEPATH "Path to ObfuscationPlugin.so")
 set(WINDOS_PATH "/usr/x86_64-w64-mingw32/include" CACHE PATH "Windows Headers directory")
 
-set(PASS_NAME "sub" CACHE STRING "Pass pipeline name")
+set(PASS_NAME "sub,fla,splitbb" CACHE STRING "Pass pipeline name")
 set(SUB_LOOP "3" CACHE STRING "Number of substitution rounds (used only if pipeline includes sub)")
 
 # LLVM tools from your build tree
