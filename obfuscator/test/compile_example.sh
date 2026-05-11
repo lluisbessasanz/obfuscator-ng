@@ -42,14 +42,14 @@ $LLVM_BIN/opt -load-pass-plugin "../build/ObfuscationPlugin.so" -passes="api_has
 LIBS="user32.lib gdi32.lib" 
 
 "$LLVM_BIN/clang-cl"  -x ir "./build/obfuscated.ll" \
-  /c /clang:-o /clang:./build/hola.obj
+  /c /clang:-o /clang:./build/program.obj
 
 "$LLVM_BIN/clang-cl" /home/user/Documents/obfuscator-ng/obfuscator/test/WindowsTools/Callback.asm \
   /c /clang:-o /clang:./build/WorkCallback.obj
 
-"$LLVM_BIN/clang-cl"  ./build/hola.obj ./build/WorkCallback.obj  \
+"$LLVM_BIN/clang-cl"  ./build/program.obj ./build/WorkCallback.obj  \
   -fuse-ld=lld \
-  /Fe:./build/hola.exe \
+  /Fe:./build/program.exe \
   /link /DEBUG:NONE /OPT:REF /OPT:ICF  \
   /SUBSYSTEM:CONSOLE \
   /MACHINE:X64 \
