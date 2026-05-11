@@ -614,6 +614,43 @@ uint64_t llvm::randomUint64() {
 }
 
 
+uint64_t llvm::randBits(unsigned Bits) {
+    static std::random_device RD;
+    static std::mt19937_64 RNG(RD());
+
+    uint64_t V = RNG();
+
+    if (Bits >= 64)
+        return V;
+
+    return V & ((1ULL << Bits) - 1ULL);
+}
+
+llvm::Constant *llvm::rewriteConstant(llvm::Constant *C, llvm::Type *Ty) {
+    if (auto *CI = dyn_cast<ConstantInt>(C)) {
+        // Replace integer constants here when appropriate.
+        return ConstantInt::get(CI->getType(), CI->getZExtValue() ^ 0x5A);
+    }
+
+    if (auto *CA = dyn_cast<ConstantArray>(C)) {
+        SmallVector<Constant *, 16> NewOps;
+        for (unsigned i = 0; i < CA->getNumOperands(); ++i)
+            NewOps.push_back(rewriteConstant(cast<Constant>(CA->getOperand(i)),
+                                             CA->getOperand(i)->getType()));
+        return ConstantArray::get(cast<ArrayType>(CA->getType()), NewOps);
+    }
+
+    if (auto *CS = dyn_cast<ConstantStruct>(C)) {
+        SmallVector<Constant *, 16> NewOps;
+        for (unsigned i = 0; i < CS->getNumOperands(); ++i)
+            NewOps.push_back(rewriteConstant(cast<Constant>(CS->getOperand(i)),
+                                             CS->getOperand(i)->getType()));
+        return ConstantStruct::get(cast<StructType>(CS->getType()), NewOps);
+    }
+
+    return C;
+}
+
 uint32_t llvm::crc32(const void *data, size_t length) {
   static uint32_t table[256];
   static bool initialized = false;
@@ -647,4 +684,34 @@ uint32_t llvm::crc32(const void *data, size_t length) {
   }
 
   return crc ^ 0xFFFFFFFFu;
+}
+
+bool llvm::hasUnsupportedIR(Function &F) {
+  for (BasicBlock &BB : F) {
+    if (BB.isEHPad())
+      return true;
+
+    for (Instruction &I : BB) {
+      if (isa<LandingPadInst>(&I) ||
+          isa<CatchSwitchInst>(&I) ||
+          isa<CatchPadInst>(&I) ||
+          isa<CleanupPadInst>(&I) ||
+          isa<CatchReturnInst>(&I) ||
+          isa<CleanupReturnInst>(&I))
+        return true;
+
+      if (auto *CB = dyn_cast<CallBase>(&I)) {
+        if (Function *Callee = CB->getCalledFunction()) {
+          StringRef N = Callee->getName();
+
+          if (N.starts_with("llvm.localescape") ||
+              N.starts_with("llvm.localrecover") ||
+              N.starts_with("llvm.eh."))
+            return true;
+        }
+      }
+    }
+  }
+
+  return false;
 }

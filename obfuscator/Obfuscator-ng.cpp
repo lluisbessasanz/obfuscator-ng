@@ -2,6 +2,10 @@
 #include "Flattening.h"
 #include "SplitBasicBlock.h"
 #include "ApiHashing.h"
+#include "ArrayObfuscation.h"
+#include "SwapOps.h"
+#include "ConstObfuscation.h"
+#include "EvasionTP.h"
 
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
@@ -26,11 +30,31 @@ extern "C" LLVM_ATTRIBUTE_WEAK PassPluginLibraryInfo llvmGetPassPluginInfo() {
               } else if (Name == "splitbb"){
                 FPM.addPass(SplitBBPass());
                 return true;
-              } else if (Name == "api_hashing"){
-                FPM.addPass(ApiHashingPass());
+              } else if (Name == "swapops") {
+                FPM.addPass(SwapOpsPass());
+                return true;
+              } else if (Name == "constobf") {
+                FPM.addPass(ConstObfuscationPass());
                 return true;
               }
               return false;
-            });
+        });
+        PB.registerPipelineParsingCallback(
+            [](StringRef Name,
+               ModulePassManager &MPM,
+               ArrayRef<PassBuilder::PipelineElement>) {
+              if (Name == "arrenc") {
+                MPM.addPass(ArrayObfuscationPass());
+                return true;
+              } else if (Name == "api_hashing") {
+                MPM.addPass(ApiHashingPass());
+                return true;
+              } else if (Name == "evasiontp") {
+                MPM.addPass(EvasionTPPass());
+                return true;
+              }
+
+              return false;
+        });
       }};
 }

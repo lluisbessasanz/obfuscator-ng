@@ -1,4 +1,5 @@
 #include "Flattening.h"
+#include "llvm/IR/Verifier.h"
 
 #define DEBUG_TYPE "flattening"
 
@@ -7,6 +8,7 @@ STATISTIC(Flattened, "Functions flattened");
 
 llvm::PreservedAnalyses llvm::FlatteningPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
   // Do we obfuscate
+
   if (!toObfuscate(flag, F, "fla"))
     return PreservedAnalyses::all();
 
@@ -25,14 +27,28 @@ bool llvm::FlatteningPass::flatten(llvm::Function &F, llvm::FunctionAnalysisMana
   SwitchInst *switchI;
   AllocaInst *switchVar;
 
+
   // SCRAMBLER
   char scrambling_key[16];
   getRandomBytes(scrambling_key, 16);
   // END OF SCRAMBLER
+  // Check IR before LowerSwitch
+  if (verifyFunction(F, &errs())) {
+    errs() << "[fla] invalid function before LowerSwitch: "
+          << F.getName() << "\n";
+    return false;
+  }
 
   // Lower switch
   LowerSwitchPass Lower;
   Lower.run(F, AM);
+
+  // Check IR after LowerSwitch
+  if (verifyFunction(F, &errs())) {
+    errs() << "[fla] invalid function after LowerSwitch: "
+          << F.getName() << "\n";
+    return false;
+  }
 
   // Save all original BB
   for (Function::iterator itBB = F.begin(); itBB != F.end(); ++itBB) {
@@ -80,7 +96,7 @@ bool llvm::FlatteningPass::flatten(llvm::Function &F, llvm::FunctionAnalysisMana
   insert->getTerminator()->eraseFromParent();
 
   // Create switch variable and set as it
-  llvm::IRBuilder<> Builder(insert);
+  llvm::IRBuilder<NoFolder> Builder(insert);
 
   /*
   CreateAllocationSize (Type *DestTy, AllocaInst *AI)
@@ -102,7 +118,7 @@ bool llvm::FlatteningPass::flatten(llvm::Function &F, llvm::FunctionAnalysisMana
   loopEntry = BasicBlock::Create(F.getContext(), "loopEntry", &F, insert);
   loopEnd = BasicBlock::Create(F.getContext(), "loopEnd", &F, insert);
 
-  IRBuilder<> LoopBuilder(loopEntry);
+  IRBuilder<NoFolder> LoopBuilder(loopEntry);
   load = LoopBuilder.CreateLoad(
       Type::getInt32Ty(F.getContext()),
       switchVar,
@@ -170,7 +186,7 @@ bool llvm::FlatteningPass::flatten(llvm::Function &F, llvm::FunctionAnalysisMana
       }
 
       // Update switchVar and jump to the end of loop
-      IRBuilder<> B(i);
+      IRBuilder<NoFolder> B(i);
       B.CreateStore(numCase, switchVar);
       BranchInst::Create(loopEnd, i);
       continue;
@@ -209,7 +225,7 @@ bool llvm::FlatteningPass::flatten(llvm::Function &F, llvm::FunctionAnalysisMana
       i->getTerminator()->eraseFromParent();
 
       // Update switchVar and jump to the end of loop
-      IRBuilder<> B(i);
+      IRBuilder<NoFolder> B(i);
       B.CreateStore(sel, switchVar);
       BranchInst::Create(loopEnd, i);
       continue;

@@ -72,6 +72,7 @@ llvm::PreservedAnalyses llvm::SubstitutionPass::run(llvm::Function &F,
                                         llvm::FunctionAnalysisManager &AM) {
   (void)AM;
 
+
   if (ObfTimes <= 0) {
     errs() << "Substitution application number -sub_loop=x must be x > 0\n";
     return PreservedAnalyses::all();

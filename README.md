@@ -105,13 +105,13 @@ In this example we compile an obfuscated reverse shell, when compiling for Linux
 
 ```bash
 /path/to/llvm-project/build/bin/clang -O0 -Xclang -disable-O0-optnone -Wimplicit-function-declaration -emit-llvm -S httpsRS.c -o httpsRS.ll -I/usr/x86_64-w64-mingw32/include --target=x86_64-w64-windows-gnu
-/path/to/llvm-project/build/bin/clang -O0 -Xclang -disable-O0-optnone -emit-llvm -S WindowsTools/APIResolver.cpp -o WindowsTools/APIResolver.ll -I/usr/x86_64-w64-mingw32/include --target=x86_64-w64-windows-gnu
+/path/to/llvm-project/build/bin/clang -O0 -Xclang -disable-O0-optnone -emit-llvm -S WindowsTools/APIResolver.c -o WindowsTools/APIResolver.ll -I/usr/x86_64-w64-mingw32/include --target=x86_64-w64-windows-gnu
 
 # If you have various IR files you need to link them.
 /path/to/llvm-project/build/bin/llvm-link WindowsTools/APIResolver.ll httpsRS.ll -S -o hack.ll
 
 # Run the passes on the ouput .ll
-/path/to/llvm-project/build/bin/opt -load-pass-plugin "../build/ObfuscationPlugin.so" -passes="api_hashing,sub,splitbb,fla" -os windows -sub_loop=2 -split_num=2 -S "hack.ll" -o "out.ll"
+/path/to/llvm-project/build/bin/opt -load-pass-plugin "../build/ObfuscationPlugin.so" -passes="function(api_hashing),function(constobf),function(swapops),function(sub),function(splitbb),function(fla),arrenc,verify" -swap_prob=67 -arrenc_seed=0xAABBCCDD -arrenc_entry=wmain -os=windows -sub_loop=2 -split_num=2 -S "hack.ll" -o "out.ll"
 
 # Compile
 /path/to/llvm-project/build/bin/clang out.ll --target=x86_64-w64-windows-gnu 
@@ -125,3 +125,6 @@ There is an example program and compilation steps in `obfuscator/test` directory
 * Avast
 * Malwarebytes
 * Bitdefender Free, if using httpsRS.c (a little bit buggy the RS interface)
+
+
+* [https://www.virustotal.com/gui/file/a505aa667fe5ea29252187d383a736684cecca0d75cb43155674ee72f353d905/detection](https://www.virustotal.com/gui/file/a505aa667fe5ea29252187d383a736684cecca0d75cb43155674ee72f353d905/detection)

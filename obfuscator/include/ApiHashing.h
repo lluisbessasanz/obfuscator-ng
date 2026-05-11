@@ -1,33 +1,33 @@
+#pragma once
 
-#ifndef _HASHING_INCLUDES_
-#define _HASHING_INCLUDES_
+#include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/NoFolder.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/Support/CRC.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/ADT/StringSet.h"
 
 #include "Utils.h"
 
-#include "llvm/ADT/Statistic.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/PassManager.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/RandomNumberGenerator.h"
-#include "llvm/IR/Module.h"
-#include "llvm/Support/raw_ostream.h"
+#include <map>
+#include <vector>
+#include <string>
 
 namespace llvm {
 
 class ApiHashingPass : public PassInfoMixin<ApiHashingPass> {
 public:
-  explicit ApiHashingPass(bool Flag = true) : flag(Flag) {}
+    PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 private:
-  bool flag = true;
-  StringRef getLibraryForFunction(StringRef Name);
+    StringRef getLibraryForFunction(StringRef Name);
+    bool shouldSkipDllForThreadPool(std::string ApiName);
+    llvm::StringSet<> parseExcludedFuncs();
+    bool finishReplaCBngCallBase(CallBase *CB);
 };
 
 } // namespace llvm
-
-
-#endif
-

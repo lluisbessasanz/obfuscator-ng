@@ -16,5 +16,8 @@ add_llvm_pass_plugin(ObfuscationPlugin
   lib/Flattening.cpp
   lib/SplitBasicBlocks.cpp
   lib/ApiHashing.cpp
+  lib/SwapOps.cpp
+  lib/ArrayObfuscation.cpp
+  lib/ConstObfuscation.cpp
   lib/Utils.cpp
 )

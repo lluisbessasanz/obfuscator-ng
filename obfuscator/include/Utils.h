@@ -25,6 +25,10 @@ static bool valueEscapes(llvm::Instruction &Inst);
 
 uint64_t randomUint64();
 uint32_t crc32(const void *data, size_t length);
+bool hasUnsupportedIR(Function &F);
+uint64_t randBits(unsigned Bits);
+Constant *rewriteConstant(Constant *C, Type *Ty);
+
 
 } 
 

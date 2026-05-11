@@ -14,6 +14,8 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/RandomNumberGenerator.h"
 #include "llvm/Transforms/Utils/LowerSwitch.h"
+#include "llvm/IR/NoFolder.h"
+
 
 namespace llvm {
 

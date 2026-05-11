@@ -26,6 +26,10 @@ static llvm::cl::opt<int> SplitNum(
     llvm::cl::Optional);
 
 llvm::PreservedAnalyses llvm::SplitBBPass::run(Function &F, FunctionAnalysisManager &AM) {
+  if (hasUnsupportedIR(F)){
+    return PreservedAnalyses::all();
+  }
+
   // Check if the number of applications is correct
   if (!((SplitNum > 1) && (SplitNum <= 10))) {
     errs()<<"Split application basic block percentage\
