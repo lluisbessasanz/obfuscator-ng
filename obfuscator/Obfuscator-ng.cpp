@@ -5,7 +5,6 @@
 #include "ArrayObfuscation.h"
 #include "SwapOps.h"
 #include "ConstObfuscation.h"
-#include "EvasionTP.h"
 
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
@@ -49,10 +48,7 @@ extern "C" LLVM_ATTRIBUTE_WEAK PassPluginLibraryInfo llvmGetPassPluginInfo() {
               } else if (Name == "api_hashing") {
                 MPM.addPass(ApiHashingPass());
                 return true;
-              } else if (Name == "evasiontp") {
-                MPM.addPass(EvasionTPPass());
-                return true;
-              }
+              } 
 
               return false;
         });
