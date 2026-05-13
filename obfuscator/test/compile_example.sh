@@ -3,7 +3,7 @@ set -e
 
 SRC_DIR="/home/user/Documents/obfuscator-ng/obfuscator/test/WindowsTools"
 
-SRC_FILES="$SRC_DIR/APIResolver.c $SRC_DIR/decoder.c $SRC_DIR/PatternSearch.cpp $SRC_DIR/ProxyCallbacks.cpp $SRC_DIR/httpsRS.c"
+SRC_FILES="$SRC_DIR/APIResolver.c $SRC_DIR/decoder.c $SRC_DIR/PatternSearch.cpp $SRC_DIR/ProxyCallbacks.cpp $SRC_DIR/TokenRegistry.cpp $SRC_DIR/httpsRS.c"
 
 IR_DIR=./build/ir
 

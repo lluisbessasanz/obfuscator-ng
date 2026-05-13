@@ -370,6 +370,9 @@ llvm::PreservedAnalyses llvm::ApiHashingPass::run(
         if (!Use.CB)
             continue;
 
+        if (!Use.CB->getParent())
+            continue;
+
         auto It = Records.find(Use.Name);
 
         if (It == Records.end())
@@ -382,7 +385,7 @@ llvm::PreservedAnalyses llvm::ApiHashingPass::run(
 
         IRBuilder<NoFolder> Builder(Use.CB);
 
-        if (api_type.getValue() == "hashing" || (!Use.CB->use_empty() && Use.CB->arg_size() > 4) || Use.CB->arg_size() > 8) {
+        if (api_type.getValue() == "hashing" || (!Use.CB->use_empty() && Use.CB->arg_size() > 4) || Use.CB->arg_size() > 10) {
             Value *LoadedPtr = Builder.CreateLoad(
                 PtrTy,
                 Rec.Slot,
@@ -1408,15 +1411,11 @@ llvm::StringRef llvm::ApiHashingPass::getLibraryForFunction(StringRef Name) {
     return "";
 }
 
+
 bool llvm::ApiHashingPass::finishReplaCBngCallBase(CallBase *CB) {
     if (!CB)
         return false;
 
-    // CRITICAL: replace all uses of the return value BEFORE erasing.
-    // Any instruction using the call result (e.g. `icmp ne i32 %ret, 0`)
-    // would hold a dangling reference after erase, causing verifyFunction
-    // to crash with a null getFunction() (segfault at Instruction::getFunction+4).
-    // The async dispatch makes the original return value meaningless anyway.
     if (!CB->getType()->isVoidTy())
         CB->replaceAllUsesWith(UndefValue::get(CB->getType()));
 
@@ -1433,43 +1432,58 @@ bool llvm::ApiHashingPass::finishReplaCBngCallBase(CallBase *CB) {
         BranchInst::Create(NormalDest, Invoke);
         Invoke->eraseFromParent();
 
-        // If the unwind block has no remaining invoke predecessors,
-        // its landingpad instruction is now illegal. Neutralise it.
-        bool HasInvokePred = llvm::any_of(
-            llvm::predecessors(UnwindDest),
-            [](BasicBlock *P) { return isa<InvokeInst>(P->getTerminator()); }
-        );
-        if (!HasInvokePred) {
-            for (Instruction &I : llvm::make_early_inc_range(*UnwindDest)) {
-                if (I.isTerminator()) break;
-                if (!I.getType()->isVoidTy())
-                    I.replaceAllUsesWith(UndefValue::get(I.getType()));
-                I.eraseFromParent();
-            }
-            UnwindDest->getTerminator()->eraseFromParent();
-            new UnreachableInst(UnwindDest->getContext(), UnwindDest);
+        // Only clean up if this was the last predecessor of the unwind block.
+        // EH pad blocks (CatchSwitchInst, LandingPadInst) are only reachable
+        // via unwind edges, so hasNoPredecessors() is the right check.
+        if (!UnwindDest->hasNPredecessors(0))
+            return true;
+
+        // Collect the ENTIRE EH subtree rooted at UnwindDest via BFS.
+        //
+        // Erasing only UnwindDest and leaving its successors (the catch
+        // handler blocks containing CatchPadInst) alive is what triggers
+        // "CatchPadInst needs to be directly nested in a CatchSwitchInst":
+        // each CatchPadInst holds a token reference back to the now-dead
+        // CatchSwitchInst in UnwindDest.  We must erase the whole subtree.
+        SmallVector<BasicBlock *, 8> EHBlocks;
+        SmallPtrSet<BasicBlock *, 8> Seen;
+        SmallVector<BasicBlock *, 8> Work;
+        Work.push_back(UnwindDest);
+        while (!Work.empty()) {
+            BasicBlock *BB = Work.pop_back_val();
+            if (!Seen.insert(BB).second)
+                continue;
+            EHBlocks.push_back(BB);
+            for (BasicBlock *S : successors(BB))
+                Work.push_back(S);
         }
+
+        // Phase 1 — drop all operand references across the whole subtree.
+        //
+        // dropAllReferences() zeroes every operand in every instruction of
+        // the block.  Doing this on all blocks before erasing anything means
+        // no instruction ever holds a dangling pointer to an already-erased
+        // value, regardless of the order we erase in phase 2.
+        //
+        // Critically, this clears:
+        //   • CatchPadInst::within   (token → CatchSwitchInst)
+        //   • CatchSwitchInst handler list  (labels → handler blocks)
+        //   • CatchReturnInst operands, etc.
+        for (BasicBlock *BB : EHBlocks)
+            BB->dropAllReferences();
+
+        // Phase 2 — erase every instruction and insert unreachable.
+        // Order does not matter because phase 1 already cleared all
+        // cross-block uses inside the subtree.
+        for (BasicBlock *BB : EHBlocks) {
+            for (Instruction &I : llvm::make_early_inc_range(*BB))
+                I.eraseFromParent();
+            new UnreachableInst(BB->getContext(), BB);
+        }
+
         return true;
     }
 
     errs() << "[api-async] unsupported CallBase kind\n";
-    return false;
-}
-
-bool llvm::ApiHashingPass::shouldSkipDllForThreadPool(std::string ApiName) {
-    std::vector<std::string> skipList = {"WinHttpOpen", 
-                                        "WinHttpConnect", 
-                                        "WinHttpOpenRequest"};
-    
-    // Method 1: Using std::find
-    if (std::find(skipList.begin(), skipList.end(), ApiName) != skipList.end()) {
-        return true;
-    }
-    
-    // Method 2: Using C++20 contains (if you have it)
-    // if (std::ranges::find(skipList, Dll) != skipList.end()) {
-    //     return true;
-    // }
-    
     return false;
 }

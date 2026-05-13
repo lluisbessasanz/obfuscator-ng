@@ -3,13 +3,13 @@
 #include <cstdint>
 
 #define WORK_ITEM_COUNT 4
-#define MAX_ARGC 4
+#define MAX_ARGC 10
 
 typedef struct WorkItemContext {
     FARPROC func;           // Function pointer
     void* retAddress;       // Return address to simulate stack return
     uint64_t argc;          // Argument count
-    void* args[MAX_ARGC];   // Arguments (up to 4)
+    void* args[MAX_ARGC];   // Arguments (up to 9)
 } WorkItemContext;
 
 

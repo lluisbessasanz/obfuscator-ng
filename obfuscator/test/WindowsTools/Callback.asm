@@ -29,9 +29,10 @@ GLOCK:    .quad 0
 #   +24      args[0]     ptr (8 b)
 #   +32      args[1]
 #   ...
-#   +136     args[14]
+#   +88      args[8]
+#   +96      args[9]
 #
-#   sizeof = 8 + 8 + 8 + 15*8 = 144 = 0x90 bytes   → stride between entries = 144
+#   FIX: sizeof = 8 + 8 + 8 + 10*8 = 104 bytes   → stride between entries = 104
 #
 # =============================================================================
 # do_call STACK FRAME   (RSP at jmp into target function = "target_RSP")
@@ -92,9 +93,9 @@ FirstCallback:
 # =============================================================================
 GenericCallback:
 
-    # offset = GINDEX × 56 (stride = sizeof WorkItemContext)
+    # FIX: offset = GINDEX × 104 (stride = sizeof WorkItemContext, MAX_ARGC=10)
     movq GINDEX(%rip), %rax
-    movq $56,         %rdx          # FIX: was $56 — stride must match struct size
+    movq $104,         %rdx          # FIX: stride = 8+8+8+10×8 = 104
     imulq %rdx, %rax
 
     movq GCONTEXT(%rip), %rdx
@@ -106,7 +107,7 @@ GenericCallback:
     movq (%rdx),   %rax              # func ptr
     movq 16(%rdx), %r11              # argc
 
-    cmpq $15, %r11
+    cmpq $10, %r11
     jg   generic_skip_call
 
     cmpq $0, %r11
@@ -128,6 +129,41 @@ GenericCallback:
     cmpq $4, %r11
     jle  generic_do_call
 
+    movq 56(%r10), %r11             # args[4]
+    movq %r11, 40(%rsp)             # -> [rsp+0x28] (5th param slot)
+    movq 16(%r10), %r11             # reload argc
+    cmpq $5, %r11
+    jle  generic_do_call
+
+    movq 64(%r10), %r11             # args[5]
+    movq %r11, 48(%rsp)             # -> [rsp+0x30] (6th param slot)
+    movq 16(%r10), %r11
+    cmpq $6, %r11
+    jle  generic_do_call
+
+    movq 72(%r10), %r11             # args[6]
+    movq %r11, 56(%rsp)             # -> [rsp+0x38] (7th param slot)
+    movq 16(%r10), %r11
+    cmpq $7, %r11
+    jle  generic_do_call
+
+    movq 80(%r10), %r11             # args[7]
+    movq %r11, 64(%rsp)             # -> [rsp+0x40] (8th param slot)
+    movq 16(%r10), %r11
+    cmpq $8, %r11
+    jle  generic_do_call
+
+    movq 88(%r10), %r11             # args[8]
+    movq %r11, 72(%rsp)             # -> [rsp+0x48] (9th param slot)
+    movq 16(%r10), %r11
+    cmpq $9, %r11
+    jle  generic_do_call
+
+    movq 96(%r10), %r11             # args[9]
+    movq %r11, 80(%rsp)             # -> [rsp+0x50] (10th param slot)
+    movq 16(%r10), %r11
+
+    movq  (%r10), %rax               # reload func ptr (r10 still valid)
 
 generic_do_call:
     movq GINDEX(%rip), %r11
@@ -162,9 +198,9 @@ LastCallback:
 
     movq $1, GLOCK(%rip)
 
-    # offset = GINDEX × 56
+    # FIX: offset = GINDEX × 104 (stride = 8+8+8+10×8 = 104)
     movq GINDEX(%rip), %rax
-    movq $56,         %rdx          # FIX: was $56
+    movq $104,         %rdx          # FIX: was $96; must match struct sizeof
     imulq %rdx, %rax
 
     movq GCONTEXT(%rip), %rdx
@@ -179,7 +215,8 @@ LastCallback:
 
     movq 16(%r10), %r11              # r11 = NumArgs
 
-    cmpq $4, %r11
+    # FIX: was cmpq $9 — must allow up to 10 args (args[0]..args[9])
+    cmpq $10, %r11
     jg   skip_call
 
     # Load register args (first 4); fall through to do_call for any remainder.
@@ -210,35 +247,37 @@ do_call:
 
     # ── Step 2: build the target-function stack frame ───────────────────────
     pushq %rbx                      # save non-volatile rbx; RSP_entry − 8
-    subq  $0x20, %rsp               # FIX: was $32.  Provides room for:
-                                    #   shadow (0x20) + 11 stack args (0x58) + pad (0x08)
+    subq  $0x20, %rsp               # shadow (0x20) + stack args (0x28..0x50) + pad
                                     #   RSP = RSP_entry − 0x88
     pushq %r12                      # push gadget as fake return address
                                     #   RSP = RSP_entry − 0x90  ← target_RSP  (mod 16 = 8 ✓)
 
     # ── Step 3: write stack args AFTER RSP is finalised ─────────────────────
-    # Now RSP = target_RSP.  Target function expects arg[4] at RSP+0x28, etc.
-    # r10 is still the struct pointer; r11 is still NumArgs.
-    # FIX: old code wrote to 40(%rsp) with a fixed offset BEFORE the frame
-    # setup, so the values ended up at wrong RSP-relative positions, and r12
-    # was reset inside the loop so only args[4] was ever read.
+    # RSP = target_RSP.  Target expects arg[4] at RSP+0x28, arg[5] at RSP+0x30, …
+    # r10 = struct ptr, r11 = NumArgs, rax = func ptr (preserved through loop).
+    #
+    # FIX: old loop used r13/r14/r15 (non-volatile, not saved → ABI violation).
+    # New loop uses only: r10 (struct ptr), r11 (volatile scratch / reload argc),
+    # r12 (non-volatile but already clobbered above — used as struct-offset iter),
+    # rax (func ptr, preserved throughout).
+    #
+    # Key invariant: rsp_offset = struct_offset − 16
+    #   args[4]: struct=56, rsp=40  (56−16=40 ✓)
+    #   args[5]: struct=64, rsp=48  (64−16=48 ✓)  … and so on.
+    # Loop exits when struct_offset reaches the last arg: 24 + (argc−1)*8 = 16 + argc*8.
     cmpq $4, %r11
     jle  do_call_dispatch
 
-    movq $5,  %r13          # r13: current 1-based arg index (5 = args[4])
-    movq $56, %r12          # r12: struct offset of args[4] = 24 + 4×8 = 56
-    movq $40, %r14          # r14: RSP offset (RSP+0x28 = RSP+40) for 5th arg
+    movq $56, %r12                  # r12 = struct offset of args[4]
 
 do_stack_loop:
-    movq (%r10,%r12,1), %r15
-    movq %r15, (%rsp,%r14,1)
-
-    cmpq %r11, %r13         # AT&T: r13 − r11.  je when r13 == r11 (all written)
-    je   do_call_dispatch   # FIX: was jle
-
-    incq %r13
+    movq (%r10,%r12,1), %r11        # r11 = arg value
+    movq %r11, -16(%rsp,%r12,1)     # store to RSP + (r12 − 16)
+    movq 16(%r10), %r11             # reload argc
+    leaq 16(,%r11,8), %r11          # r11 = terminal struct offset = 16 + argc*8
+    cmpq %r11, %r12                 # written last arg?
+    je   do_call_dispatch           # rax still = func ptr ✓
     addq $8, %r12
-    addq $8, %r14
     jmp  do_stack_loop
 
 
@@ -271,7 +310,8 @@ StackSmashingCallback:
     movq  (%r10), %rax               # func ptr — save early, rax is volatile
     movq 16(%r10), %r11              # argc     — r11 is volatile on Windows
 
-    cmpq $6, %r11
+    # FIX: was cmpq $9 — must allow up to 10 args (args[0]..args[9])
+    cmpq $10, %r11
     jg   smash_skip_call
 
     cmpq $0, %r11
@@ -293,10 +333,8 @@ StackSmashingCallback:
     cmpq $4, %r11
     jle  smash_do_call
 
-    # Stack args: args[4] and args[5]
+    # Stack args: args[4] and beyond
     # Use only volatile regs: r10 (ctx), r11 (argc), rax (func ptr)
-    # Temporarily stash func ptr — we need rax free as scratch
-    # r10 still = ctx ptr
 
     movq 56(%r10), %r11              # args[4] value
     movq %r11, 40(%rsp)              # -> [rsp+0x28] (5th param slot)
@@ -322,13 +360,29 @@ StackSmashingCallback:
     movq 80(%r10), %r11              # args[7] value
     movq %r11, 64(%rsp)              # -> [rsp+0x40] (8th param slot)
 
+    movq 16(%r10), %r11
+    cmpq $8, %r11
+    jle  smash_do_call
+
+    movq 88(%r10), %r11              # args[8] value
+    movq %r11, 72(%rsp)              # -> [rsp+0x48] (9th param slot)
+
+    movq 16(%r10), %r11
+    cmpq $9, %r11
+    # FIX: was jle generic_do_call (wrong function!) — must jump to smash_do_call
+    jle  smash_do_call
+
+    movq 96(%r10), %r11              # args[9] value
+    movq %r11, 80(%rsp)              # -> [rsp+0x50] (10th param slot)
+    movq 16(%r10), %r11
+
     movq  (%r10), %rax               # reload func ptr (r10 still valid)
-    movq 16(%r10), %r11              # reload argc (not needed now, but clean)
+
 
 smash_do_call:
     # rax = func ptr
     # rcx/rdx/r8/r9 = args[0..3]
-    # [rsp+40],[rsp+48] = args[4..5]
+    # [rsp+40]..[rsp+80] = args[4..9]
     # [rsp+0] = ntdll return address  ← the spoof
     # Shadow space [rsp+8..+32] already there from ntdll's call to us
 
